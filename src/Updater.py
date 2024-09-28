@@ -31,19 +31,16 @@ def runUpdates():
 	with open(__actual_dir__ + "/" + "../config/version.json") as f: version_here: VersionInfo = json.load(f);
 	version_online = loadOnlineVersion() or version_here;
 	
-	if version_here["app"] != version_online["app"] and messagebox.askyesno(TITLE, f"A new version of the app is available {version_here['app']} -> {version_online['app']}"):
+	if (False
+		or version_here["app"       ] != version_online["app"       ] and messagebox.askyesno(TITLE, f"A new version of the app is available {            version_here['app'       ]} -> {version_online['app'       ]}")
+		or version_here["algorithms"] != version_online["algorithms"] and messagebox.askyesno(TITLE, f"A new version of the CORE ALGORITHMS is available {version_here['algorithms']} -> {version_online['algorithms']}\nThis will also update the app")
+	):
 		if updateApp() is Exception:
-			messagebox.showerror(TITLE, "Could not update app to the latest version");
+			messagebox.showerror(TITLE, "Could not update app to the latest version\nMaybe you don't have git installed\nYou can update to the latest version manually");
 		pass
 	pass
 
-	if version_here["algorithms"] != version_online["algorithms"] and messagebox.askyesno(TITLE, f"A new version of the CORE ALGORITHMS is available {version_here['algorithms']} -> {version_online['algorithms']}\nThis will also update the app"):
-		if updateApp() is Exception:
-			messagebox.showerror(TITLE, "Could not update app to the latest version");
-		pass
-	pass
-
-	if version_here["crypto"] != version_online["crypto"]:
+	if version_here["crypto"] != version_online["crypto"] or not tryImportCrypto():
 		match updateCrypto(version_online["crypto"]):
 			case True: version_here["crypto"] = version_online["crypto"];
 			case Exception: messagebox.showwarning(TITLE, "Could not update Cryptographic dependancy to the latest version");
@@ -79,7 +76,7 @@ pass
 
 def updateApp():
 	try:
-		if subprocess.run(["git", "pull", "origin", "main"], cwd = Constants.ROOT) == 0:
+		if subprocess.run(["git", "pull", "origin", "main"], cwd = Constants.ROOT).returncode == 0:
 			sys.exit(subprocess.run([sys.executable, Constants.ROOT + "/SecretsManager.pyw"]));
 		else: 
 			return Exception;
@@ -89,9 +86,14 @@ def updateApp():
 	pass
 pass
 
+def tryImportCrypto() -> bool:
+	try: import dependencies.Crypto;
+	except ImportError: return False;
+	else: return True;
+pass
 def updateCrypto(new_version):
 	try:
-		if subprocess.run(["pip", "install", f"pycryptodome=={new_version}", "--target", f"{Constants.ROOT}/dependencies/"], cwd = Constants.ROOT) == 0:
+		if subprocess.run(["pip", "install", f"pycryptodome=={new_version}", "--target", f"{Constants.ROOT}/dependencies/"], cwd = Constants.ROOT, stderr=subprocess.PIPE, stdout=subprocess.PIPE).returncode == 0:
 			return True;
 		else:
 			return Exception;

@@ -2,10 +2,10 @@ from __future__ import annotations;
 
 from dataclasses import dataclass;
 
-from ..Misc import BytesChunk, InstanceClassMethod;
-from ..User import *;
+from ..Misc import BytesChunk;
+from ..User import User;
 
-__all__ = ("LoginAlgorithm", "SealAlgorithm", "Secret", );
+__all__ = ("LoginAlgorithm", "SealAlgorithm", "Secret", "User", "BytesChunk");
 
 @dataclass
 class Secret:
@@ -24,8 +24,8 @@ class _Algorithm:
 	
 	def __init_subclass__(cls):
 		if not hasattr(cls, "id"): 
-			assert cls in (LoginAlgorithm, SealAlgorithm), f"You forgot id in {cls}";
-			return;
+			assert False, f"You forgot id in {cls}";
+		elif cls.id is None: return;
 		pass
 		cls.algorithms[cls.id] = cls();
 		if cls.deprecated_replacement is not None: 
@@ -34,7 +34,8 @@ class _Algorithm:
 	pass
 pass
 
-class LoginAlgorithm:
+class LoginAlgorithm(_Algorithm):
+	id = None;
 	algorithms: dict[int, LoginAlgorithm] = {};
 	deprecated: dict[int, int] = {};
 	current: int = 0;
@@ -57,7 +58,8 @@ class LoginAlgorithm:
 pass
 
 
-class SealAlgorithm(Algorithm):
+class SealAlgorithm(_Algorithm):
+	id = None;
 	algorithms: dict[int, SealAlgorithm] = {};
 	deprecated: dict[int, int] = {};
 	default: int = 0;

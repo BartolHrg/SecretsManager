@@ -15,8 +15,12 @@ pass
 from src.Misc import Constants;
 Constants.ROOT = __actual_dir__.replace("\\", "/");
 import src.Updater;
+print("Updater");
 
 import src.Storage;
+print("Storage");
 import src.Algorithms.Init;
+print("Algorithms");
 import src.Elements  .Init;
+print("Elements");
 
