@@ -5,11 +5,6 @@ class Constants:
 	ROOT: str;
 pass
 
-class BytesChunk:
-	def __iter__(self) -> Iterable[bytes]: ...
-	def getChunk(n_bytes = 0) -> bytes: ...
-pass
-
 def singleton[T](cls: type[T]) -> T: return cls();
 
 class InstanceClassMethod:

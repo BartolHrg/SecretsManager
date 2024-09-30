@@ -1,6 +1,11 @@
-
+from __future__ import typing;
+from typing import TYPE_CHECKING;
 
 from dataclasses import dataclass;
+
+if TYPE_CHECKING:
+	from .Storage import Database;
+pass
 
 @dataclass
 class DbUser:
@@ -9,6 +14,7 @@ class DbUser:
 	algorithm: int;
 	msalt: bytes;
 	mhash: bytes;
+	db: Database;
 pass
 
 @dataclass

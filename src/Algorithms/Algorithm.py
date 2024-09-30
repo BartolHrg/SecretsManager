@@ -2,14 +2,14 @@ from __future__ import annotations;
 
 from dataclasses import dataclass;
 
-from ..Misc import BytesChunk;
+from ..ByteChunks import ByteChunks;
 from ..User import User;
 
-__all__ = ("LoginAlgorithm", "SealAlgorithm", "Secret", "User", "BytesChunk");
+__all__ = ("LoginAlgorithm", "SealAlgorithm", "Secret", "User", "ByteChunks");
 
 @dataclass
 class Secret:
-	data: BytesChunk;
+	data: ByteChunks;
 	salt: bytes;
 	hash: bytes;
 	algorithm_id: int;
@@ -25,8 +25,12 @@ class _Algorithm:
 	def __init_subclass__(cls):
 		if not hasattr(cls, "id"): 
 			assert False, f"You forgot id in {cls}";
-		elif cls.id is None: return;
+		elif cls.id is None: 
+			cls.algorithms = {};
+			cls.deprecated = {};
+			return;
 		pass
+		assert cls.id not in cls.algorithms.keys(), "Duplicate id for {cls}";
 		cls.algorithms[cls.id] = cls();
 		if cls.deprecated_replacement is not None: 
 			cls.deprecated[cls.id] = cls.deprecated_replacement;
@@ -36,8 +40,6 @@ pass
 
 class LoginAlgorithm(_Algorithm):
 	id = None;
-	algorithms: dict[int, LoginAlgorithm] = {};
-	deprecated: dict[int, int] = {};
 	current: int = 0;
 	
 	@staticmethod
@@ -60,12 +62,10 @@ pass
 
 class SealAlgorithm(_Algorithm):
 	id = None;
-	algorithms: dict[int, SealAlgorithm] = {};
-	deprecated: dict[int, int] = {};
 	default: int = 0;
 	
 	@staticmethod
-	def   seal(data  : BytesChunk, key: bytes, algorithm_id: int = None) -> Secret    : 
+	def   seal(data  : ByteChunks, key: bytes, algorithm_id: int = None) -> Secret    : 
 		if algorithm_id is None: algorithm_id = self.default;
 		algorithm = self.algorithms[algorithm_id];
 		secret: Secret = algorithm.seal(data, key);
@@ -73,7 +73,7 @@ class SealAlgorithm(_Algorithm):
 		return secret;
 	pass
 	@staticmethod
-	def unseal(secret: Secret    , key: bytes) -> BytesChunk:
+	def unseal(secret: Secret    , key: bytes) -> ByteChunks:
 		algorithm = self.algorithms[secret.algorithm_id];
 		return algorithm.unseal(secret, key);
 	pass

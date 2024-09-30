@@ -1,3 +1,5 @@
+from __future__ import annotations;
+
 import sys, os;
 import uuid;
 import sqlite3;
@@ -35,7 +37,10 @@ class DbData:
 	key: str;
 	algorithm: int;
 	kind: int;
-	data: bytes
+	data: bytes;
+	user: User;
+	@property
+	def db(self): return self.user.db;
 pass
 
 def argsToBytes(*args: bytes) -> bytes:
@@ -98,7 +103,7 @@ class Database:
 	def userGet(self, username: str) -> User: 
 		self.cursor.execute(self.Statements.User.GET, (username, ));
 		(id, username, algorithm, msalt, mhash) = self.cursor.fetchone();
-		return User(id, username, algorithm, msalt, mhash, None);
+		return User(id, username, algorithm, msalt, mhash, self, None);
 	pass
 	def userGetUsernames(self) -> list[str]: 
 		self.cursor.execute(self.Statements.User.GET_USERNAMES);
@@ -114,7 +119,8 @@ class Database:
 		self.cursor.execute(self.Statements.Data.EXISTS, (user.id, key, ));
 		return bool(self.cursor.fetchone()[0]);
 	pass
-	def dataSave(self, user: DbUser, data: DbData, is_new: bool = None):
+	def dataSave(self, data: DbData, is_new: bool = None):
+		user = data.user;
 		if is_new is None: is_new = data.id is None;
 		if is_new:
 			self.cursor.execute(self.Statements.Data.SAVE_NEW, (user.id, data.key, data.algorithm, data.kind, data.data, ));
@@ -125,16 +131,16 @@ class Database:
 		self.connection.commit();
 	pass
 	def dataGetUserOwned(self, user: DbUser) -> list[DbData]: 
-		self.cursor.execute(self.Statements.Data.GET_USER_SECRETS, (user.id, ));
+		self.cursor.execute(self.Statements.Data.GET_USER_DATAS, (user.id, ));
 		rows = self.cursor.fetchall();
-		return [DbData(id, key, algorithm, kind, data,) for (id, user_id, key, algorithm, kind, data,) in rows];
+		return [DbData(id, key, algorithm, kind, data, user) for (id, user_id, key, algorithm, kind, data,) in rows];
 	pass
 	def dataDelete(self, id: int): 
 		self.cursor.execute(self.Statements.Data.DELETE, (id, ));
 		self.connection.commit();
 	pass
 	def dataDeleteUserOwned(self, user: DbUser): 
-		self.cursor.execute(self.Statements.Data.DELETE_USER_SECRETS, (user.id, ));
+		self.cursor.execute(self.Statements.Data.DELETE_USER_DATAS, (user.id, ));
 		self.connection.commit();
 	pass
 
