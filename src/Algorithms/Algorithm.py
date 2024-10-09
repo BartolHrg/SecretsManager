@@ -16,7 +16,7 @@ class Secret:
 pass
 
 class _Algorithm:
-	algorithms: dict[int, Algorithm];
+	algorithms: dict[int, _Algorithm];
 	deprecated: dict[int, int];
 	id: int;
 	deprecated_replacement: int | None = None;
@@ -44,15 +44,14 @@ class LoginAlgorithm(_Algorithm):
 	
 	@staticmethod
 	def register(user: User, mpass: str): 
-		algorithm_id = user.algorithm if user.algorithm is not None else self.current;
-		algorithm = self.algorithms[algorithm_id];
+		if user.algorithm is None: user.algorithm = LoginAlgorithm.current;
+		algorithm = LoginAlgorithm.algorithms[user.algorithm];
 		algorithm.register(user, mpass);
 		assert user.mkey is not None;
 	pass
 	@staticmethod
 	def login   (user: User, mpass: str) -> bool:
-		algorithm_id = user.algorithm;
-		algorithm = self.algorithms[algorithm_id];
+		algorithm = LoginAlgorithm.algorithms[user.algorithm];
 		if not algorithm.login(user, mpass): return False;
 		assert user.mkey is not None;
 		return True;
@@ -65,17 +64,23 @@ class SealAlgorithm(_Algorithm):
 	default: int = 0;
 	
 	@staticmethod
-	def   seal(data  : ByteChunks, key: bytes, algorithm_id: int = None) -> Secret    : 
-		if algorithm_id is None: algorithm_id = self.default;
-		algorithm = self.algorithms[algorithm_id];
+	def   seal(data  : ByteChunks, key: bytes, header: bytes = None, algorithm_id: int = None) -> Secret    : 
+		if algorithm_id is None: algorithm_id = SealAlgorithm.default;
+		algorithm = SealAlgorithm.algorithms[algorithm_id];
 		secret: Secret = algorithm.seal(data, key);
 		secret.algorithm_id = algorithm_id;
 		return secret;
 	pass
 	@staticmethod
-	def unseal(secret: Secret    , key: bytes) -> ByteChunks:
-		algorithm = self.algorithms[secret.algorithm_id];
+	def unseal(secret: Secret    , key: bytes, header: bytes = None) -> ByteChunks:
+		algorithm = SealAlgorithm.algorithms[secret.algorithm_id];
 		return algorithm.unseal(secret, key);
+	pass
+	
+	@staticmethod
+	def getRandomBytes(n_bytes: int) -> bytes:
+		algorithm = SealAlgorithm.algorithms[SealAlgorithm.default];
+		return algorithm.getRandomBytes(n_bytes);
 	pass
 pass
 

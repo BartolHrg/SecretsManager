@@ -1,4 +1,4 @@
-from __future__ import typing;
+from __future__ import annotations;
 from typing import TYPE_CHECKING;
 
 from dataclasses import dataclass;
@@ -14,7 +14,7 @@ class DbUser:
 	algorithm: int;
 	msalt: bytes;
 	mhash: bytes;
-	db: Database;
+	sub_db_path: str;
 pass
 
 @dataclass

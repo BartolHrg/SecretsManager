@@ -16,7 +16,7 @@ import json, subprocess;
 from urllib import request;
 from tkinter import messagebox;
 
-from .Misc import Constants;
+from .Misc import Globals;
 # pip install <package_name>==<version>
 
 TITLE = "SecretsManager - Update System";
@@ -76,8 +76,8 @@ pass
 
 def updateApp():
 	try:
-		if subprocess.run(["git", "pull", "origin", "main"], cwd = Constants.ROOT).returncode == 0:
-			sys.exit(subprocess.run([sys.executable, Constants.ROOT + "/SecretsManager.pyw"]));
+		if subprocess.run(["git", "pull", "origin", "main"], cwd = Globals.ROOT).returncode == 0:
+			sys.exit(subprocess.run([sys.executable, Globals.ROOT + "/SecretsManager.pyw"]));
 		else: 
 			return Exception;
 		pass
@@ -93,7 +93,7 @@ def tryImportCrypto() -> bool:
 pass
 def updateCrypto(new_version):
 	try:
-		if subprocess.run(["pip", "install", f"pycryptodome=={new_version}", "--target", f"{Constants.ROOT}/dependencies/"], cwd = Constants.ROOT, stderr=subprocess.PIPE, stdout=subprocess.PIPE).returncode == 0:
+		if subprocess.run(["pip", "install", f"pycryptodome=={new_version}", "--target", f"{Globals.ROOT}/dependencies/"], cwd = Globals.ROOT, stderr=subprocess.PIPE, stdout=subprocess.PIPE).returncode == 0:
 			return True;
 		else:
 			return Exception;

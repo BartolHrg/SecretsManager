@@ -1,15 +1,20 @@
 from __future__ import annotations;
+from typing import TYPE_CHECKING;
 
 import sys, os;
 import uuid;
 import sqlite3;
 from dataclasses import dataclass;
 
-from .Misc import Constants;
+from .Misc import Globals;
 from .User import User, DbUser;
 
+if TYPE_CHECKING:
+	from .Vault import Vault;
+pass
+
 if len(sys.argv) == 1:
-	storage_root = Constants.ROOT + "/storage/";
+	storage_root = Globals.ROOT + "/storage/";
 elif len(sys.argv) == 2:
 	storage_root = os.path.abspath(sys.argv[1]) + "/";
 pass
@@ -34,13 +39,13 @@ pass
 @dataclass
 class DbData:
 	id: int;
-	key: str;
+	name: str;
 	algorithm: int;
 	kind: int;
 	data: bytes;
-	user: User;
+	vault: Vault;
 	@property
-	def db(self): return self.user.db;
+	def db(self): return self.vault.db;
 pass
 
 def argsToBytes(*args: bytes) -> bytes:
@@ -72,19 +77,34 @@ class Database:
 	def __init__(self, path = "main.db"):
 		if not path.startswith(data_path): path = data_path + path;
 		self.path = path;
+		self._open_count = 0;
 		with self: self.cursor.executescript(Database.Statements.INIT);
 	pass
 
+	# this will count opens and closes to create transactions
+	# scope-like behavior
 	def open(self):
-		self.connection = sqlite3.connect(self.path);
+		self._open_count += 1;
+		if self._open_count != 1: return;
+		self.connection = sqlite3.connect(self.path, autocommit = False);
 		self.cursor = self.connection.cursor();
+		# print("opening");
 	pass
-	def close(self):
+	def close(self, commit = True):
+		self._open_count -= 1;
+		if self._open_count < 0: raise ValueError("Database: Too much closing");
+		if self._open_count != 0: return;
+		if commit: self.connection.commit();
+		else:      self.connection.rollback();
+		# print("closing", commit);
 		self.cursor.close();
 		self.connection.close();
 	pass
-	def __enter__(self, *_): self.open();
-	def __exit__(self, *_): self.close();
+	def __enter__(self): self.open();
+	def __exit__(self, exc_type, exc_value, traceback): self.close(exc_type is None);
+	def assertTransactionDone(self):
+		if self._open_count != 0: raise ValueError(f"Database: Transaction not done: {self._open_count}");
+	pass
 	
 	def userExists(self, username: str) -> bool:
 		self.cursor.execute(self.Statements.User.EXISTS, (username, ));
@@ -93,17 +113,17 @@ class Database:
 	def userSave(self, user: DbUser, is_new: bool = None):
 		if is_new is None: is_new = user.id is None;
 		if is_new:
-			self.cursor.execute(self.Statements.User.SAVE_NEW, (user.username, user.algorithm, user.msalt, user.mhash, ));
+			self.cursor.execute(self.Statements.User.SAVE_NEW, (user.username, user.algorithm, user.msalt, user.mhash, user.sub_db_path, ));
 			user.id = self.cursor.lastrowid;
 		else:
-			self.cursor.execute(self.Statements.User.SAVE_OLD, (user.username, user.algorithm, user.msalt, user.mhash, user.id, ));
+			self.cursor.execute(self.Statements.User.SAVE_OLD, (user.username, user.algorithm, user.msalt, user.mhash, user.sub_db_path, user.id, ));
 		pass
 		self.connection.commit();
 	pass
 	def userGet(self, username: str) -> User: 
 		self.cursor.execute(self.Statements.User.GET, (username, ));
-		(id, username, algorithm, msalt, mhash) = self.cursor.fetchone();
-		return User(id, username, algorithm, msalt, mhash, self, None);
+		(id, username, algorithm, msalt, mhash, sub_db_path) = self.cursor.fetchone();
+		return User(id, username, algorithm, msalt, mhash, sub_db_path, None);
 	pass
 	def userGetUsernames(self) -> list[str]: 
 		self.cursor.execute(self.Statements.User.GET_USERNAMES);
@@ -115,25 +135,25 @@ class Database:
 		self.connection.commit();
 	pass
 	
-	def dataExists(self, user: DbUser, key: str) -> bool:
-		self.cursor.execute(self.Statements.Data.EXISTS, (user.id, key, ));
+	def dataExists(self, user: DbUser, name: str) -> bool:
+		self.cursor.execute(self.Statements.Data.EXISTS, (user.id, name, ));
 		return bool(self.cursor.fetchone()[0]);
 	pass
 	def dataSave(self, data: DbData, is_new: bool = None):
 		user = data.user;
 		if is_new is None: is_new = data.id is None;
 		if is_new:
-			self.cursor.execute(self.Statements.Data.SAVE_NEW, (user.id, data.key, data.algorithm, data.kind, data.data, ));
+			self.cursor.execute(self.Statements.Data.SAVE_NEW, (user.id, data.name, data.algorithm, data.kind, data.data, ));
 			data.id = self.cursor.lastrowid;
 		else:
-			self.cursor.execute(self.Statements.Data.SAVE_OLD, (data.key, data.algorithm, data.kind, data.data, data.id, user.id));
+			self.cursor.execute(self.Statements.Data.SAVE_OLD, (data.name, data.algorithm, data.kind, data.data, data.id, user.id));
 		pass
 		self.connection.commit();
 	pass
 	def dataGetUserOwned(self, user: DbUser) -> list[DbData]: 
 		self.cursor.execute(self.Statements.Data.GET_USER_DATAS, (user.id, ));
 		rows = self.cursor.fetchall();
-		return [DbData(id, key, algorithm, kind, data, user) for (id, user_id, key, algorithm, kind, data,) in rows];
+		return [DbData(id, name, algorithm, kind, data, user) for (id, user_id, name, algorithm, kind, data,) in rows];
 	pass
 	def dataDelete(self, id: int): 
 		self.cursor.execute(self.Statements.Data.DELETE, (id, ));
@@ -148,28 +168,29 @@ class Database:
 		INIT = """
 			PRAGMA foreign_keys = ON;
 			CREATE TABLE IF NOT EXISTS User (
-				my_id        INTEGER PRIMARY KEY ,
-				my_username  TEXT    UNIQUE      ,
-				my_algorithm INTEGER             ,
-				my_msalt     BLOB                ,
-				my_mhash     BLOB
+				my_id          INTEGER PRIMARY KEY ,
+				my_username    TEXT    UNIQUE      ,
+				my_algorithm   INTEGER             ,
+				my_msalt       BLOB                ,
+				my_mhash       BLOB                ,
+				my_sub_db_path TEXT
 			) STRICT;
 			CREATE TABLE IF NOT EXISTS Data (
-				my_id        INTEGER PRIMARY KEY ,
-				user_id      TEXT    REFERENCES User(my_id) ON DELETE RESTRICT  ,
-				my_key       TEXT                ,
-				my_algorithm INTEGER             ,
-				my_kind      INTEGER             ,
-				my_data      BLOB                ,
-				UNIQUE (user_id, my_key)
+				my_id          INTEGER PRIMARY KEY ,
+				user_id        TEXT    REFERENCES User(my_id) ON DELETE RESTRICT  ,
+				my_name        TEXT                ,
+				my_algorithm   INTEGER             ,
+				my_kind        INTEGER             ,
+				my_data        BLOB                ,
+				UNIQUE (user_id, my_name)
 			) STRICT;
 		""";
 		class User:
 			EXISTS = """ SELECT EXISTS(SELECT 1 FROM User WHERE my_username=?); """;
-			SAVE_NEW = """ INSERT INTO User (my_username, my_algorithm, my_msalt, my_mhash) VALUES(?, ?, ?, ?); """; # use lastrowid
+			SAVE_NEW = """ INSERT INTO User (my_username, my_algorithm, my_msalt, my_mhash, my_sub_db_path) VALUES(?, ?, ?, ?, ?); """; # use lastrowid
 			SAVE_OLD = """
 				UPDATE User
-				SET my_username=?, my_algorithm=?, my_msalt=?, my_mhash=?
+				SET my_username=?, my_algorithm=?, my_msalt=?, my_mhash=?, my_sub_db_path=?
 				WHERE my_id=?
 			""";
 			GET = """ SELECT * FROM User WHERE my_username=? """;
@@ -177,11 +198,11 @@ class Database:
 			DELETE = """ DELETE FROM User WHERE my_username=? """;
 		pass
 		class Data:
-			EXISTS = """ SELECT EXISTS(SELECT 1 FROM Data WHERE user_id=? AND my_key=?); """;
-			SAVE_NEW = """ INSERT INTO Data (user_id, my_key, my_algorithm, my_kind, my_data) VALUES(?, ?, ?, ?, ?); """; # use lastrowid
+			EXISTS = """ SELECT EXISTS(SELECT 1 FROM Data WHERE user_id=? AND my_name=?); """;
+			SAVE_NEW = """ INSERT INTO Data (user_id, my_name, my_algorithm, my_kind, my_data) VALUES(?, ?, ?, ?, ?); """; # use lastrowid
 			SAVE_OLD = """
 				UPDATE Data
-				SET my_key=?, my_algorithm=?, my_kind=?, my_data=?
+				SET my_name=?, my_algorithm=?, my_kind=?, my_data=?
 				WHERE my_id=? AND user_id=?
 			""";
 			GET_USER_DATAS = """ SELECT * FROM Data WHERE user_id=? """;

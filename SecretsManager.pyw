@@ -12,8 +12,8 @@ pass
 
 
 
-from src.Misc import Constants;
-Constants.ROOT = __actual_dir__.replace("\\", "/");
+from src.Misc import Globals;
+Globals.ROOT = __actual_dir__.replace("\\", "/");
 import src.Updater;
 print("Updater");
 
@@ -24,3 +24,16 @@ print("Algorithms");
 import src.Elements  .Init;
 print("Elements");
 
+from src.GUI.LoginView import *;
+from src.User import User;
+from src.Storage import Database;
+from src.Vault import Vault;
+
+db = Database();
+def onLogin(user: User, login_type: LoginType):
+	print("Login");
+	Globals.vault = Vault(user, db);
+	# TODO vault view & mainloop
+pass
+_ref_count_login = LoginView(None, db, LoginType.LOGIN, onLogin, lambda: print("Oh well"));
+_ref_count_login.window.mainloop();

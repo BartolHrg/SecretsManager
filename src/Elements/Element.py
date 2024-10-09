@@ -1,13 +1,18 @@
 from __future__ import annotations;
+from typing import TYPE_CHECKING;
 
 from ..Storage import DbData;
-from ..User import User;
+
+if TYPE_CHECKING:
+	from ..Vault import Vault;
+pass
 
 class Element:
 	element_types: dict[int, type[Element]] = {};
 	element_type: int;
 	db_data: DbData;
-	key: str;
+	name: str;
+	vault: Vault;
 	
 	def __init_subclass__(cls):
 		assert hasattr(cls, "element_type");
@@ -18,12 +23,13 @@ class Element:
 
 	def save(self, force = False): ...
 	@staticmethod
-	def load(db_data: DbData) -> Element:
+	def load(db_data: DbData, vault: Vault) -> Element:
 		element_type = db_data.kind;
 		cls = Element.element_types[element_type];
 		self = cls();
+		self.name = db_data.name;
 		self.db_data = db_data;
-		self.key = self.db_data.key;
+		self.vault = vault;
 		self.onLoad();
 		return self;
 	pass
@@ -31,6 +37,6 @@ class Element:
 	def unlock(self): ...
 	
 	@classmethod
-	def create(cls, user: User) -> Element: ...
+	def create(cls, vault: Vault) -> Element: ...
 	def delete(self): ...
 pass

@@ -24,7 +24,9 @@ class SimpleSeal(SealAlgorithm):
 	description = "Unsecure - Plain Text"
 	# deprecated_replacement = ...
 	@staticmethod
-	def seal(data: ByteChunks, key: bytes) -> Secret    : return Secret(data, b"", b"");
+	def seal(data: ByteChunks, key: bytes, header: bytes = None) -> Secret    : return Secret(data, b"", b"");
 	@staticmethod
-	def unseal(secret: Secret, key: bytes) -> ByteChunks: return secret.data;
+	def unseal(secret: Secret, key: bytes, header: bytes = None) -> ByteChunks: return secret.data;
+	@staticmethod
+	def getRandomBytes(n_bytes: int) -> bytes: return b"7" * n_bytes;
 pass
